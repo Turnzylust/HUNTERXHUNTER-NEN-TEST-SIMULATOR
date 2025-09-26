@@ -1,0 +1,12 @@
+{
+  "name": "hxh-nen-simulator-sora-starter",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "vercel dev"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

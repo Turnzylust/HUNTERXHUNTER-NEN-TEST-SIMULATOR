@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HxH Nen Simulator — Sora-Ready</title>
+<style>
+  body { background:#0a0a0a; color:#f0f0f0; font-family: 'Trebuchet MS', sans-serif; text-align:center; padding:20px; }
+  .phase { display:none; }
+  .active { display:block; }
+  button { background:#222; color:#fff; border:2px solid #555; padding:10px 20px; margin:10px; cursor:pointer; font-size:16px; border-radius:10px; }
+  button:hover { background:#444; }
+  input[type=text]{ width:min(520px,90%); padding:10px; border-radius:8px; border:1px solid #444; background:#111; color:#eee; }
+  .grid { display:grid; gap:14px; justify-content:center; }
+  #stats .bar-container{ width:min(720px,90%); background:#333; margin:8px auto; height:18px; border-radius:10px; }
+  #stats .bar{ height:100%; width:0; background:#35f06e; border-radius:10px; transition: width .4s ease; }
+  #abilityPreview img, #abilityVideo { max-width:min(820px,95%); width:100%; height:auto; border:2px solid #fff; border-radius:12px; margin-top:10px; }
+  #music-toggle { position: fixed; top:10px; right:10px; background:#111; border-radius:8px; z-index:10; }
+  .muted { opacity:.75 }
+  .note { font-size: 12px; color:#bbb; }
+</style>
+</head>
+<body>
+<h1>🪪 Hunter Exam — Nen Simulator</h1>
+<button id="music-toggle" title="Toggle music">🔊 Music</button>
+
+<!-- Phase 1 -->
+<div id="phase1" class="phase active">
+  <h2>Phase 1: Nen Affinity Test</h2>
+  <form id="affinityForm" class="grid">
+    <p>Which trait describes you best?</p>
+    <label><input type="radio" name="q1" value="Enhancer"> Enhancer — Energetic / Strong</label>
+    <label><input type="radio" name="q1" value="Emitter"> Emitter — Calm / Focused</label>
+    <label><input type="radio" name="q1" value="Manipulator"> Manipulator — Strategic / Controlled</label>
+    <label><input type="radio" name="q1" value="Transmuter"> Transmuter — Creative / Adaptive</label>
+    <label><input type="radio" name="q1" value="Conjurer"> Conjurer — Imaginative / Practical</label>
+    <label><input type="radio" name="q1" value="Specialist"> Specialist — Unique / Unpredictable</label>
+  </form>
+  <button onclick="calculateAffinity()">Submit & Proceed</button>
+</div>
+
+<!-- Phase 2 -->
+<div id="phase2" class="phase">
+  <h2>Phase 2: Ability Builder</h2>
+  <div class="grid">
+    <label>Pick an item or element:
+      <input type="text" id="abilityItem" placeholder="e.g., Sword, Fire, Shadow" />
+    </label>
+    <label>Add a unique trait:
+      <input type="text" id="abilityTrait" placeholder="e.g., Doubles attack speed while calm" />
+    </label>
+  </div>
+  <button onclick="submitAbility()">Finish Phase 2</button>
+  <button onclick="retuneAbility()">Retune Ability</button>
+</div>
+
+<!-- Phase 3 -->
+<div id="phase3" class="phase">
+  <h2>Phase 3: Ability Enhancement</h2>
+  <p>Select or rethink your conditions (demo uses random stats).</p>
+  <button onclick="generateStats()">Generate Stats</button>
+  <div id="stats">
+    <div>Strength <div class="bar-container"><div class="bar" id="strengthBar"></div></div></div>
+    <div>Versatility <div class="bar-container"><div class="bar" id="versatilityBar"></div></div></div>
+    <div>Smarts <div class="bar-container"><div class="bar" id="smartsBar"></div></div></div>
+    <div>Nen Usage <div class="bar-container"><div class="bar" id="nenBar"></div></div></div>
+    <div>Offense <div class="bar-container"><div class="bar" id="offenseBar"></div></div></div>
+    <div>Defense <div class="bar-container"><div class="bar" id="defenseBar"></div></div></div>
+  </div>
+
+  <!-- AI ability IMAGE -->
+  <div id="abilityPreview">
+    <h3>Your Nen Ability — Image Preview</h3>
+    <p class="note">Auto-generates from your ability. Uses built-in API (OpenAI if key set), or placeholder.</p>
+    <img id="abilityImg" alt="Nen Ability" />
+  </div>
+
+  <!-- AI ability VIDEO (Sora-ready) -->
+  <div id="abilityVideoWrap">
+    <h3>Your Nen Ability — Action Video (Sora-ready)</h3>
+    <p class="note">Calls <code>/api/generate-video</code>. If the provider queues, we poll <code>/api/video-status</code>.</p>
+    <div>
+      <button id="genVideoBtn" onclick="generateAbilityVideo()">🎬 Generate Action Video</button>
+      <span id="videoStatus" class="note"></span>
+    </div>
+    <video id="abilityVideo" controls loop muted playsinline class="muted"></video>
+  </div>
+
+  <button onclick="showPhase4()">Finish Phase 3</button>
+  <button onclick="retuneEnhancement()">Retune Conditions</button>
+</div>
+
+<!-- Phase 4 -->
+<div id="phase4" class="phase">
+  <h2>Phase 4: World Placement</h2>
+  <p id="worldPlacement">Determining your role in the HxH world...</p>
+  <button onclick="showPhase5()">Proceed to Phase 5</button>
+</div>
+
+<!-- Phase 5 -->
+<div id="phase5" class="phase">
+  <h2>Phase 5: Arc Survival Simulator</h2>
+  <p id="arcSurvival">Calculating survival chances...</p>
+  <button onclick="restartExam()">Restart Exam</button>
+</div>
+
+<!-- Music placeholders -->
+<audio id="music1" loop><source src="phase1.mp3" type="audio/mp3"></audio>
+<audio id="music2" loop><source src="phase2.mp3" type="audio/mp3"></audio>
+<audio id="music3" loop><source src="phase3.mp3" type="audio/mp3"></audio>
+
+<script>
+// Phase/state
+let currentPhase=1;
+const phases={1:document.getElementById('phase1'),2:document.getElementById('phase2'),3:document.getElementById('phase3'),4:document.getElementById('phase4'),5:document.getElementById('phase5')};
+
+// Music
+const music1=document.getElementById('music1');
+const music2=document.getElementById('music2');
+const music3=document.getElementById('music3');
+let musicEnabled=true, fadeInterval=null;
+
+function fadeOut(audio,callback){clearInterval(fadeInterval);fadeInterval=setInterval(()=>{if(audio.volume>0.05)audio.volume-=0.05;else{audio.volume=0;audio.pause();clearInterval(fadeInterval);if(callback)callback();}},50);}
+function fadeIn(audio){audio.volume=0;if(musicEnabled)audio.play();clearInterval(fadeInterval);fadeInterval=setInterval(()=>{if(audio.volume<1)audio.volume+=0.05;else clearInterval(fadeInterval);},50);}
+
+function goToPhase(n){
+  phases[currentPhase].classList.remove('active');
+  phases[n].classList.add('active');
+  if(currentPhase===1 && n===2) fadeOut(music1, ()=>fadeIn(music2));
+  if(currentPhase===2 && n===3) fadeOut(music2, ()=>fadeIn(music3));
+  currentPhase=n;
+}
+function showPhase3(){ goToPhase(3); generateStats(); generateAbilityImage(); }
+function showPhase4(){ goToPhase(4); generateWorldPlacement(); }
+function showPhase5(){ goToPhase(5); generateArcSurvival(); }
+function restartExam(){ location.reload(); }
+
+// Music toggle
+const toggleBtn=document.getElementById('music-toggle');
+toggleBtn.onclick=()=>{
+  musicEnabled=!musicEnabled;
+  toggleBtn.textContent = musicEnabled ? '🔊 Music' : '🔈 Music Off';
+  if(musicEnabled){ if(currentPhase===1)fadeIn(music1); else if(currentPhase===2)fadeIn(music2); else fadeIn(music3); }
+  else { fadeOut(music1); fadeOut(music2); fadeOut(music3); }
+};
+
+// Phase 1 & 2
+let userAffinity='';
+let userAbility={};
+function calculateAffinity(){
+  const selected=document.querySelector('input[name="q1"]:checked');
+  if(!selected){ alert('Select an answer'); return; }
+  userAffinity=selected.value; goToPhase(2);
+}
+function submitAbility(){
+  const item=document.getElementById('abilityItem').value.trim();
+  const trait=document.getElementById('abilityTrait').value.trim();
+  if(!item || !trait){ alert('Enter both fields'); return; }
+  userAbility={item, trait, affinity:userAffinity}; showPhase3();
+}
+function retuneAbility(){ alert('Ability retuning enabled (edit your item/trait and resubmit).'); }
+function retuneEnhancement(){ alert('Enhancement retuning enabled (regen stats / adjust conditions).'); }
+
+// Phase 3 stats (demo calc)
+function generateStats(){
+  const stats={
+    strength:Math.floor(Math.random()*100),
+    versatility:Math.floor(Math.random()*100),
+    smarts:Math.floor(Math.random()*100),
+    nen:Math.floor(Math.random()*100),
+    offense:Math.floor(Math.random()*100),
+    defense:Math.floor(Math.random()*100),
+  };
+  document.getElementById('strengthBar').style.width=stats.strength+'%';
+  document.getElementById('versatilityBar').style.width=stats.versatility+'%';
+  document.getElementById('smartsBar').style.width=stats.smarts+'%';
+  document.getElementById('nenBar').style.width=stats.nen+'%';
+  document.getElementById('offenseBar').style.width=stats.offense+'%';
+  document.getElementById('defenseBar').style.width=stats.defense+'%';
+}
+
+// ---------- IMAGE GENERATION (built-in) ----------
+async function generateAbilityImage(){
+  const description = `${userAbility.affinity} ability: ${userAbility.item} with trait ${userAbility.trait}, dynamic anime action scene, aura glow, motion lines, cinematic lighting, sharp focus`;
+  try{
+    const r = await fetch('/api/generate-image', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt: description }) });
+    const data = await r.json();
+    if(data.image_url){ document.getElementById('abilityImg').src = data.image_url; return; }
+    throw new Error('No image_url in response');
+  }catch(e){
+    const fallback='https://via.placeholder.com/800x500?text='+encodeURIComponent('Image preview failed — '+(e.message||'error'));
+    document.getElementById('abilityImg').src = fallback;
+  }
+}
+
+// ---------- VIDEO GENERATION (Sora-ready) ----------
+async function generateAbilityVideo(){
+  const btn = document.getElementById('genVideoBtn');
+  const status = document.getElementById('videoStatus');
+  const videoEl = document.getElementById('abilityVideo');
+  const basePrompt = `${userAbility.affinity} ability: ${userAbility.item} with trait ${userAbility.trait}`;
+  const style = 'dynamic anime action, cinematic camera, aura energy, volumetric lighting, dramatic particles, high detail';
+  const prompt = `${basePrompt}, ${style}`;
+
+  btn.disabled = true; status.textContent = 'requesting video…';
+  try{
+    const r = await fetch('/api/generate-video', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt }) });
+    if(!r.ok){ throw new Error('Video API error '+r.status); }
+    const data = await r.json();
+
+    if(data.video_url){
+      status.textContent = 'render complete';
+      videoEl.src = data.video_url; videoEl.play();
+    } else if(data.job_id){
+      status.textContent = 'queued…';
+      const poll = setInterval(async ()=>{
+        try{
+          const pr = await fetch(`/api/video-status?id=${encodeURIComponent(data.job_id)}`);
+          const pj = await pr.json();
+          if(pj.status==='succeeded' && pj.video_url){
+            clearInterval(poll); status.textContent = 'render complete';
+            videoEl.src = pj.video_url; videoEl.play();
+          } else if(pj.status==='failed'){
+            clearInterval(poll); throw new Error('render failed');
+          } else {
+            status.textContent = `status: ${pj.status||'processing'}…`;
+          }
+        }catch(err){ clearInterval(poll); status.textContent = 'status check failed'; console.error(err); }
+      }, 3000);
+    } else {
+      throw new Error('Unexpected response');
+    }
+  }catch(e){
+    console.error(e);
+    status.textContent = 'video generation failed — showing placeholder';
+    videoEl.src = 'https://files.catbox.moe/3q7t5x.mp4';
+    videoEl.play();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Phase 4
+function generateWorldPlacement(){
+  const options=["Human","Hunter Exam Failer","Licensed Hunter","Heavens Arena Fighter","Elite Hunter"];
+  const pick=options[Math.floor(Math.random()*options.length)];
+  document.getElementById('worldPlacement').innerText = `You are placed in the world as: ${pick}`;
+}
+
+// Phase 5
+function generateArcSurvival(){
+  const chance=Math.floor(Math.random()*100);
+  document.getElementById('arcSurvival').innerText = `Survival Chance in this arc: ${chance}%`;
+}
+
+// Autoplay Phase 1 music if allowed
+window.onload=()=>{ try{ music1.play(); }catch(e){} };
+</script>
+</body>
+</html>
